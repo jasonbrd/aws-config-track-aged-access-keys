@@ -38,6 +38,7 @@ Resources:
         SNS topic to distribute information regarding access key rotation rule
         non-compliance
       TopicName: AccessKeyRotationTopic
+      KmsMasterKeyId: alias/aws/sns
   SNSTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
