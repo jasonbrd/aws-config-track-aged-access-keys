@@ -1,18 +1,31 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Create an SNS Topic to publish results for AWS Config Rule Access-Key-Rotation
 Parameters:
-  TargetAccounts:
+  MultiAccountMethod:
     Type: String
-    Description: The list of target AWS Account Ids, comma-separated
+    Description: Use AWS Organizations for child accounts or provide an account list?
+    AllowedValues:
+      - "AWS Organizations"
+      - "Account List"
+  OrganizationID:
+    Type: String
+    Description: The AWS Organization ID to allow 
+  TargetAccounts:
+    Type: CommaDelimitedList
+    Description: The list of target AWS Account IDs, comma-separated
+
+Conditions:
+  OrgManaged: !Equals [!Ref MultiAccountMethod, 'AWS Organizations']
+
 Resources:
   SNSTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
       DisplayName: >-
-        SNS topic to distribute information regarding access key rotation rule
-        non-compliance
+        Access Key rotation rule non-compliance
       TopicName: AccessKeyRotationTopic
-      KmsMasterKeyId: alias/aws/sns
+      KmsMasterKeyId: !Ref KMSKey
+
   SNSTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
@@ -31,12 +44,59 @@ Resources:
               - !Ref 'AWS::AccountId'
               - ':AccessKeyRotationTopic'          
           Principal:
-            AWS: 
-              !Split 
-                - ","
-                - !Ref TargetAccounts
+            AWS: !If [OrgManaged, '*', !Ref TargetAccounts]
+          Condition:
+            !If
+              - OrgManaged
+              - 
+                StringEquals:
+                  aws:PrincipalOrgID: !Ref OrganizationID
+              - !Ref "AWS::NoValue"
       Topics:
       - !Ref SNSTopic
+
+  KMSKey:
+    Type: 'AWS::KMS::Key'
+    Properties: 
+      Description: Key for Access Key Rotation SNS Topic
+      EnableKeyRotation: true
+      KeyPolicy: 
+        Version: 2012-10-17
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Join ['', [ 'arn:aws:iam::', !Ref 'AWS::AccountId', ':root'] ]
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS: !If [OrgManaged, '*', !Ref TargetAccounts]
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:GenerateDataKey'
+            Resource: '*'
+            Condition:
+              !If
+                - OrgManaged
+                - 
+                  StringEquals:
+                    aws:PrincipalOrgID: !Ref OrganizationID
+                    kms:ViaService: "sns.amazonaws.com"
+                - 
+                  StringEquals:
+                    kms:ViaService: "sns.amazonaws.com"
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT      
+
+  KMSKeyAlias:
+    Type: 'AWS::KMS::Alias'
+    Properties: 
+      AliasName: alias/accessKeys/sns
+      TargetKeyId: !Ref KMSKey
+
 Outputs:
   SNSTopicOutput:
     Description: The SNS Topic that was created
