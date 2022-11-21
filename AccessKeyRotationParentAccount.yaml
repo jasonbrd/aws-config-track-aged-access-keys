@@ -76,7 +76,7 @@ Resources:
               AWS: !If [OrgManaged, '*', !Ref TargetAccounts]
             Action:
               - 'kms:Decrypt'
-              - 'kms:GenerateDataKey'
+              - 'kms:GenerateDataKey*'
             Resource: '*'
             Condition:
               !If
@@ -84,10 +84,7 @@ Resources:
                 - 
                   StringEquals:
                     aws:PrincipalOrgID: !Ref OrganizationID
-                    kms:ViaService: "sns.amazonaws.com"
-                - 
-                  StringEquals:
-                    kms:ViaService: "sns.amazonaws.com"
+                - !Ref 'AWS::NoValue'
       KeySpec: SYMMETRIC_DEFAULT
       KeyUsage: ENCRYPT_DECRYPT      
 
@@ -101,3 +98,6 @@ Outputs:
   SNSTopicOutput:
     Description: The SNS Topic that was created
     Value: !Ref SNSTopic
+  KMSKeyOutput:
+    Description: The KMS key that was created
+    Value: !GetAtt KMSKey.Arn

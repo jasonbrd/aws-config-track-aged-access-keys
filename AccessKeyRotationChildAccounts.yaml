@@ -14,6 +14,9 @@ Parameters:
   SNSTopic:
     Type: String
     Description: The SNS Topic to be used for sending notifications regarding noncompliant Access Keys
+  KMSKeyArn:
+    Type: String
+    Description: The KMS Key to be used for encrypting notifications
   MaximumExecutionFrequency:
     Type: String
     Default: TwentyFour_Hours
@@ -62,6 +65,15 @@ Resources:
               - Effect: Allow
                 Action: 'sns:Publish'
                 Resource: !Ref SNSTopic
+        - PolicyName: AccessKeyKmsKeyAccessPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - 'kms:Decrypt'
+                  - 'kms:GenerateDataKey*'
+                Resource: !Ref KMSKeyArn
       RoleName: AccessKeyRotationRemediationRole
 
   AccessKeyRotationAutomationDoc:
@@ -156,6 +168,8 @@ Metadata:
           default: Required
         Parameters:
           - maxAccessKeyAge
+          - KMSKeyArn
+          - SNSTopic
       - Label:
           default: Optional
         Parameters: []    
